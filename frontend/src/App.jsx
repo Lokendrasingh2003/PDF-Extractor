@@ -3,30 +3,53 @@ import axios from "axios";
 
 function App() {
   const [message, setMessage] = useState("");
-  const [response, setResponse] = useState("");
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!message.trim()) return;
+    const userMessage = {
+      role: "user",
+      content: message,
+    };
+
+    // Add user's message to UI
+    setMessages((prev) => [...prev, userMessage]);
+
+    // Save current message before clearing input
+    const currentMessage = message;
+
+    setMessage("");
+    setLoading(true);
 
     try {
-      setLoading(true);
-      setResponse("");
-
       const res = await axios.post(
         "http://localhost:5000/api/chat",
         {
-          message,
+          message: currentMessage,
+          messages: [...messages, userMessage],
         }
       );
 
-      setResponse(res.data.reply);
-    } catch (error) {
-      console.error(error);
+      const assistantMessage = {
+        role: "assistant",
+        content: res.data.reply,
+      };
 
-      setResponse("Something went wrong.");
+      setMessages((prev) => [...prev, assistantMessage]);
+
+    } catch (error) {
+      console.error("Chat Error:", error);
+
+      const errorMessage = {
+        role: "assistant",
+        content: "Something went wrong.",
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+
     } finally {
       setLoading(false);
     }
@@ -36,6 +59,18 @@ function App() {
     <div>
       <h1>AI Chatbot 🤖</h1>
 
+      <div>
+        {messages.map((msg, index) => (
+          <div key={index}>
+            <strong>
+              {msg.role === "user" ? "You" : "AI"}:
+            </strong>
+
+            <span> {msg.content}</span>
+          </div>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit}>
         <input
           type="text"
@@ -44,17 +79,10 @@ function App() {
           onChange={(e) => setMessage(e.target.value)}
         />
 
-        <button type="submit">
+        <button type="submit" disabled={loading}>
           {loading ? "Thinking..." : "Send"}
         </button>
       </form>
-
-      {response && (
-        <div>
-          <h3>AI Response:</h3>
-          <p>{response}</p>
-        </div>
-      )}
     </div>
   );
 }
