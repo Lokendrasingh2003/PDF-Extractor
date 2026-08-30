@@ -1,4 +1,4 @@
-
+import multer from "multer";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -11,6 +11,10 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+const upload = multer({
+  dest: "uploads/",
+});
 
 app.get("/", (req, res) => {
   res.json({
@@ -52,6 +56,37 @@ app.post("/api/chat", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ OpenRouter Error:", error);
+
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+
+app.post("/api/upload", upload.single("pdf"), async (req, res) => {
+  try {
+    console.log("📄 Upload request received");
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "PDF file is required",
+      });
+    }
+
+    console.log("File:", req.file);
+
+    res.json({
+      message: "PDF uploaded successfully",
+      file: {
+        originalName: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ Upload Error:", error);
 
     res.status(500).json({
       error: error.message,
