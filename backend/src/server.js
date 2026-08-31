@@ -1,5 +1,7 @@
 import multer from "multer";
 import express from "express";
+import fs from "fs";
+import pdf from "pdf-parse";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -63,7 +65,6 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-
 app.post("/api/upload", upload.single("pdf"), async (req, res) => {
   try {
     console.log("📄 Upload request received");
@@ -74,19 +75,37 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
       });
     }
 
-    console.log("File:", req.file);
+    console.log("📁 File:", req.file.originalname);
+
+    // Read uploaded PDF
+    const dataBuffer = fs.readFileSync(req.file.path);
+
+    // Extract text from PDF
+    const data = await pdf(dataBuffer);
+
+    console.log("📄 PDF text extracted");
+    console.log("Number of pages:", data.numpages);
+    console.log("Text length:", data.text.length);
+
+    console.log("----- PDF TEXT -----");
+    console.log(data.text);
+    console.log("--------------------");
 
     res.json({
-      message: "PDF uploaded successfully",
+      message: "PDF uploaded and text extracted successfully",
+
       file: {
         originalName: req.file.originalname,
         filename: req.file.filename,
-        path: req.file.path,
       },
+
+      pages: data.numpages,
+
+      text: data.text,
     });
 
   } catch (error) {
-    console.error("❌ Upload Error:", error);
+    console.error("❌ PDF Error:", error);
 
     res.status(500).json({
       error: error.message,
