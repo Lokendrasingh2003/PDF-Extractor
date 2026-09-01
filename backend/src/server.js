@@ -2,6 +2,7 @@ import multer from "multer";
 import express from "express";
 import fs from "fs";
 import pdf from "pdf-parse";
+import { chunkText } from "./utils/chunkText.js";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -91,8 +92,17 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
     console.log(data.text);
     console.log("--------------------");
 
-    res.json({
-      message: "PDF uploaded and text extracted successfully",
+    const chunks = chunkText(data.text);
+
+    console.log("📦 Number of chunks:", chunks.length);
+
+    chunks.forEach((chunk, index) => {
+      console.log(`\n--- Chunk ${index + 1} ---`);
+      console.log(chunk);
+    });
+
+   res.json({
+      message: "PDF processed successfully",
 
       file: {
         originalName: req.file.originalname,
@@ -101,7 +111,11 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
 
       pages: data.numpages,
 
-      text: data.text,
+      totalCharacters: data.text.length,
+
+      totalChunks: chunks.length,
+
+      chunks,
     });
 
   } catch (error) {
