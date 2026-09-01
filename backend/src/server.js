@@ -208,6 +208,14 @@ Question:
 ${question}
 
 Answer clearly and concisely.
+
+
+Format your answer using Markdown:
+- Use headings for major sections.
+- Use bullet points for lists.
+- Use bold text for important terms.
+- Use short paragraphs.
+- Do not use unnecessary headings.
 `;
 
     // 4. Send context + question to OpenRouter
