@@ -4,6 +4,7 @@ import fs from "fs";
 import pdf from "pdf-parse";
 import { chunkText } from "./utils/chunkText.js";
 import { createEmbedding } from "./utils/createEmbedding.js";
+import { getCollection } from "./utils/vectorStore.js";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -79,37 +80,62 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
 
     console.log("📁 File:", req.file.originalname);
 
-    // Read uploaded PDF
     const dataBuffer = fs.readFileSync(req.file.path);
 
-    // Extract text from PDF
+    // 1. Extract text
     const data = await pdf(dataBuffer);
+
+    const text = data.text.trim();
 
     console.log("📄 PDF text extracted");
     console.log("Number of pages:", data.numpages);
-    console.log("Text length:", data.text.length);
+    console.log("Text length:", text.length);
 
-    console.log("----- PDF TEXT -----");
-    console.log(data.text);
-    console.log("--------------------");
+    if (!text) {
+      return res.status(400).json({
+        error:
+          "No readable text found in this PDF. The PDF may be scanned/image-based.",
+      });
+    }
 
-    const chunks = chunkText(data.text);
+    // 2. Create chunks
+    const chunks = chunkText(text);
 
     console.log("📦 Number of chunks:", chunks.length);
 
-    chunks.forEach((chunk, index) => {
-      console.log(`\n--- Chunk ${index + 1} ---`);
-      console.log(chunk);
-    });
+    // 3. Get Chroma collection
+    const collection = await getCollection();
 
-    const embedding = await createEmbedding(chunks[0]);
+    // 4. Create embeddings and store chunks
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
 
-console.log("🧠 Embedding generated");
-console.log("Embedding dimensions:", embedding.length);
-console.log("First 10 values:", embedding.slice(0, 10));
+      console.log(
+        `🧠 Creating embedding ${i + 1}/${chunks.length}`
+      );
 
-   res.json({
-      message: "PDF processed successfully",
+      const embedding = await createEmbedding(chunk);
+
+      await collection.add({
+        ids: [`${req.file.filename}-${i}`],
+
+        embeddings: [embedding],
+
+        documents: [chunk],
+
+        metadatas: [
+          {
+            filename: req.file.originalname,
+            chunkIndex: i,
+          },
+        ],
+      });
+    }
+
+    console.log("✅ All chunks stored in ChromaDB");
+
+    res.json({
+      message: "PDF processed and stored successfully",
 
       file: {
         originalName: req.file.originalname,
@@ -118,15 +144,13 @@ console.log("First 10 values:", embedding.slice(0, 10));
 
       pages: data.numpages,
 
-      totalCharacters: data.text.length,
+      totalCharacters: text.length,
 
       totalChunks: chunks.length,
-
-      chunks,
     });
 
   } catch (error) {
-    console.error("❌ PDF Error:", error);
+    console.error("❌ PDF Processing Error:", error);
 
     res.status(500).json({
       error: error.message,
