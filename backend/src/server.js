@@ -3,6 +3,7 @@ import express from "express";
 import fs from "fs";
 import pdf from "pdf-parse";
 import { chunkText } from "./utils/chunkText.js";
+import { createEmbedding } from "./utils/createEmbedding.js";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -100,6 +101,12 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
       console.log(`\n--- Chunk ${index + 1} ---`);
       console.log(chunk);
     });
+
+    const embedding = await createEmbedding(chunks[0]);
+
+console.log("🧠 Embedding generated");
+console.log("Embedding dimensions:", embedding.length);
+console.log("First 10 values:", embedding.slice(0, 10));
 
    res.json({
       message: "PDF processed successfully",
