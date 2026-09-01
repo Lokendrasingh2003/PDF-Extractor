@@ -5,6 +5,7 @@ import pdf from "pdf-parse";
 import { chunkText } from "./utils/chunkText.js";
 import { createEmbedding } from "./utils/createEmbedding.js";
 import { getCollection } from "./utils/vectorStore.js";
+import { searchDocuments } from "./utils/searchDocuments.js";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -157,6 +158,99 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
     });
   }
 });
+
+
+
+
+app.post("/api/query", async (req, res) => {
+  try {
+    const { question } = req.body;
+
+    if (!question) {
+      return res.status(400).json({
+        error: "Question is required",
+      });
+    }
+
+    console.log("🔍 User question:", question);
+
+    // 1. Retrieve relevant chunks from ChromaDB
+    const results = await searchDocuments(question, 3);
+
+    const documents = results.documents?.[0] || [];
+
+    console.log("📚 Retrieved chunks:", documents.length);
+
+    if (documents.length === 0) {
+      return res.status(404).json({
+        error: "No relevant information found in the uploaded documents.",
+      });
+    }
+
+    // 2. Combine retrieved chunks into context
+    const context = documents.join("\n\n");
+
+    console.log("📄 Context created");
+
+    // 3. Create prompt for the LLM
+    const prompt = `
+You are a helpful AI assistant answering questions about uploaded documents.
+
+Use ONLY the information provided in the context below.
+
+If the answer cannot be found in the context, say:
+"I couldn't find that information in the uploaded document."
+
+Context:
+${context}
+
+Question:
+${question}
+
+Answer clearly and concisely.
+`;
+
+    // 4. Send context + question to OpenRouter
+    const completion = await openrouter.chat.completions.create({
+      model: "openai/gpt-4o-mini",
+
+      messages: [
+        {
+          role: "system",
+          content:
+            "Answer questions using only the provided document context.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    // 5. Get LLM response
+    const reply = completion.choices[0].message.content;
+
+    console.log("🤖 AI response generated");
+
+    // 6. Send response to frontend
+    res.json({
+      question,
+      answer: reply,
+      sources: documents,
+    });
+
+  } catch (error) {
+    console.error("❌ RAG Error:", error);
+
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+
+
+
 
 const PORT = process.env.PORT || 5000;
 
